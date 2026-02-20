@@ -13,7 +13,6 @@ const viz = new Spacekit.Simulation(document.getElementById("main-container"), {
 const SpaceObjectPresets = Spacekit.SpaceObjectPresets;
 const particleSize = 10;
 
-// viz.createStars();
 viz.createObject("mercury", { ...SpaceObjectPresets.MERCURY, particleSize });
 viz.createObject("venus", { ...SpaceObjectPresets.VENUS, particleSize });
 viz.createObject("earth", { ...SpaceObjectPresets.EARTH, particleSize });
@@ -28,6 +27,8 @@ viz.createObject("uranus", { ...SpaceObjectPresets.URANUS, particleSize });
 const EphemPresets = Spacekit.EphemPresets;
 /** @type {import("spacekit.js").Ephem} */
 const Ephem = Spacekit.Ephem;
+
+const stars = viz.createStars();
 
 const sun = viz.createObject("sun", {
   ...SpaceObjectPresets.SUN,
@@ -56,12 +57,21 @@ const pluto = viz.createSphere("pluto", {
 const gui = new dat.GUI();
 const guiState = {
   Speed: 15000,
+  Stars: true,
   Anchor: "Sun",
 };
 
 viz.setJdPerSecond(guiState.Speed);
 gui.add(guiState, "Speed", 0, 1e5).onChange((val) => {
   viz.setJdPerSecond(val);
+});
+
+gui.add(guiState, "Stars", true).onChange((val) => {
+  if (val) {
+    viz.addObject(stars, true);
+  } else {
+    viz.removeObject(stars);
+  }
 });
 
 /** @type {import("spacekit.js").THREE} */
