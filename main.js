@@ -8,9 +8,19 @@ const viz = new Spacekit.Simulation(document.getElementById("main-container"), {
     enableDrift: false,
   },
 });
-
 /** @type {import("spacekit.js").SpaceObjectPresets} */
 const SpaceObjectPresets = Spacekit.SpaceObjectPresets;
+
+/** @type {import("spacekit.js").EphemPresets} */
+const EphemPresets = Spacekit.EphemPresets;
+
+const stars = viz.createStars();
+
+const sun = viz.createObject("sun", {
+  ...SpaceObjectPresets.SUN,
+  scale: [10, 10, 10],
+});
+
 const particleSize = 10;
 
 viz.createObject("mercury", { ...SpaceObjectPresets.MERCURY, particleSize });
@@ -20,20 +30,6 @@ viz.createObject("mars", { ...SpaceObjectPresets.MARS, particleSize });
 viz.createObject("jupiter", { ...SpaceObjectPresets.JUPITER, particleSize });
 viz.createObject("saturn", { ...SpaceObjectPresets.SATURN, particleSize });
 viz.createObject("uranus", { ...SpaceObjectPresets.URANUS, particleSize });
-// viz.createObject("neptune", SpaceObjectPresets.NEPTUNE);
-// viz.createObject("pluto", SpaceObjectPresets.PLUTO);
-
-/** @type {import("spacekit.js").EphemPresets} */
-const EphemPresets = Spacekit.EphemPresets;
-/** @type {import("spacekit.js").Ephem} */
-const Ephem = Spacekit.Ephem;
-
-const stars = viz.createStars();
-
-const sun = viz.createObject("sun", {
-  ...SpaceObjectPresets.SUN,
-  scale: [10, 10, 10],
-});
 
 const neptune = viz.createSphere("neptune", {
   ephem: EphemPresets.NEPTUNE,
@@ -53,7 +49,7 @@ const pluto = viz.createSphere("pluto", {
   },
 });
 
-/** @type {import('dat.gui')} */
+/** @type {import('dat.gui').GUI} */
 const gui = new dat.GUI();
 const guiState = {
   Speed: 15000,
