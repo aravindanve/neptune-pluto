@@ -1,6 +1,7 @@
 {
   "devDependencies": {
     "@types/dat.gui": "^0.7.13",
+    "decimal.js": "^10.6.0",
     "spacekit.js": "^0.1.1"
   }
 }
