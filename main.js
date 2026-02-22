@@ -1,13 +1,19 @@
-const cameraInitialPosition = [0, -90, 30];
+const initialCameraPosition = [0, -90, 30];
+const initialControllerValues = {
+  Speed: 15000,
+  Stars: true,
+  Anchor: "None",
+};
 
 /** @type {import("spacekit.js").Simulation} */
 const viz = new Spacekit.Simulation(document.getElementById("main-container"), {
   basePath: "https://typpo.github.io/spacekit/src",
   camera: {
-    initialPosition: cameraInitialPosition,
+    initialPosition: initialCameraPosition,
     enableDrift: false,
   },
 });
+
 /** @type {import("spacekit.js").SpaceObjectPresets} */
 const SpaceObjectPresets = Spacekit.SpaceObjectPresets;
 
@@ -52,13 +58,11 @@ const pluto = viz.createSphere("pluto", {
 /** @type {import('dat.gui').GUI} */
 const gui = new dat.GUI();
 const guiState = {
-  Speed: 15000,
-  Stars: true,
-  Anchor: "Sun",
+  ...initialControllerValues,
 };
 
 viz.setJdPerSecond(guiState.Speed);
-gui.add(guiState, "Speed", 0, 1e5).onChange((val) => {
+const speedController = gui.add(guiState, "Speed", 0, 1e5).onChange((val) => {
   viz.setJdPerSecond(val);
 });
 
@@ -78,69 +82,24 @@ const neptuneMesh = neptune.get3jsObjects()[0];
 const camera = viz.getViewer().get3jsCamera();
 const cameraControls = viz.getViewer().get3jsCameraControls();
 
-gui.add(guiState, "Anchor", ["Sun", "Neptune"]).onChange((val) => {
-  if (val === "Sun") {
-    // set camera position
-    camera.position.set(...cameraInitialPosition);
-
-    // set camera target to sun
-    cameraControls.target.set(0, 0, 0);
-    cameraControls.update();
-
-    // update camera matrix
-    camera.updateMatrixWorld();
-
-    // stop following neptune
+gui.add(guiState, "Anchor", ["None", "Neptune"]).onChange((val) => {
+  if (val === "None") {
+    // stop tracking neptune with camera
     viz.onTick = null;
 
     //
   } else {
-    // compute sun to neptune vector
-    const sunToNeptune = new THREE.Vector3().subVectors(
-      neptuneMesh.position,
-      sunMesh.position,
-    );
+    let neptunePositionOld = neptuneMesh.position.clone();
 
-    // compute sun to cam vector
-    const sunToCam = new THREE.Vector3(...cameraInitialPosition);
-
-    // compute cam rotation
-    const camRotation = new THREE.Quaternion().setFromUnitVectors(
-      sunToCam.clone().setZ(0).normalize(),
-      sunToNeptune.clone().setZ(0).normalize(),
-    );
-
-    // console.log(camRotation);
-
-    // compute cam position vector by applying rotation
-    const camPosition = sunToCam.clone().applyQuaternion(camRotation);
-
-    // set cam to neptune as camera position
-    camera.position.copy(camPosition);
-
-    // set new target to neptune
-    cameraControls.target.copy(neptuneMesh.position);
-    cameraControls.update();
-
-    // update camera matrix
-    camera.updateMatrixWorld();
-
-    // start following neptune keeping sun fixed
+    // start tracking neptune with camera while keeping the sun at the center
     viz.onTick = () => {
-      const neptunePosOld = cameraControls.target;
-      const neptunePosNew = neptuneMesh.position.clone();
+      const neptunePositionNew = neptuneMesh.position.clone();
 
       // compute old sun to neptune vector
-      const sunToNeptuneOld = new THREE.Vector3().subVectors(
-        neptunePosOld,
-        sunMesh.position,
-      );
+      const sunToNeptuneOld = neptunePositionOld.clone().sub(sunMesh.position);
 
       // compute new sun to neptune vector
-      const sunToNeptuneNew = new THREE.Vector3().subVectors(
-        neptunePosNew,
-        sunMesh.position,
-      );
+      const sunToNeptuneNew = neptunePositionNew.clone().sub(sunMesh.position);
 
       // compute sun to neptune vector rotation
       const sunToNeptuneRotation = new THREE.Quaternion().setFromUnitVectors(
@@ -148,26 +107,34 @@ gui.add(guiState, "Anchor", ["Sun", "Neptune"]).onChange((val) => {
         sunToNeptuneNew.clone().normalize(),
       );
 
-      // compute new cam to neptune vector by using old values and applying rotation
-      const camToNeptuneNew = new THREE.Vector3()
-        .subVectors(neptunePosOld, camera.position)
+      // compute new sun to cam vector by using old values and applying rotation
+      const sunToCamNew = camera.position
+        .clone()
         .applyQuaternion(sunToNeptuneRotation);
-
-      // compute new sun to cam vector
-      const sunToCamNew = new THREE.Vector3().addVectors(
-        sunToNeptuneNew,
-        camToNeptuneNew.clone().negate(),
-      );
 
       // set new sun to cam vector as camera position
       camera.position.copy(sunToCamNew);
 
-      // set new target to neptune
-      cameraControls.target.copy(neptunePosNew);
-      cameraControls.update();
-
       // update camera matrix
       camera.updateMatrixWorld();
+
+      // update old neptune position
+      neptunePositionOld = neptunePositionNew.clone();
     };
   }
 });
+
+const guiReset = {
+  Reset: () => {
+    // set speed to initial value
+    speedController.setValue(initialControllerValues.Speed);
+
+    // set camera position to initial
+    camera.position.set(...initialCameraPosition);
+
+    // update camera matrix
+    camera.updateMatrixWorld();
+  },
+};
+
+gui.add(guiReset, "Reset").name("Reset Speed and Camera");
