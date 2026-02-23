@@ -2,7 +2,7 @@ const initialCameraPosition = [0, -90, 30];
 const initialControllerValues = {
   Speed: 15000,
   Stars: true,
-  Anchor: "None",
+  Track: "None",
 };
 
 /** @type {import("spacekit.js").Simulation} */
@@ -82,7 +82,7 @@ const neptuneMesh = neptune.get3jsObjects()[0];
 const camera = viz.getViewer().get3jsCamera();
 const cameraControls = viz.getViewer().get3jsCameraControls();
 
-gui.add(guiState, "Anchor", ["None", "Neptune"]).onChange((val) => {
+gui.add(guiState, "Track", ["None", "Neptune"]).onChange((val) => {
   if (val === "None") {
     // stop tracking neptune with camera
     viz.onTick = null;
@@ -107,13 +107,30 @@ gui.add(guiState, "Anchor", ["None", "Neptune"]).onChange((val) => {
         sunToNeptuneNew.clone().normalize(),
       );
 
-      // compute new sun to cam vector by using old values and applying rotation
+      // compute sun to neptune vector scale factor
+      const sunToNeptuneScaleFactor =
+        sunToNeptuneOld.length() !== 0
+          ? sunToNeptuneNew.length() / sunToNeptuneOld.length()
+          : 1;
+
+      // compute new sun to cam vector by applying rotation and scale factor
       const sunToCamNew = camera.position
         .clone()
-        .applyQuaternion(sunToNeptuneRotation);
+        .applyQuaternion(sunToNeptuneRotation)
+        .multiplyScalar(sunToNeptuneScaleFactor);
 
       // set new sun to cam vector as camera position
       camera.position.copy(sunToCamNew);
+
+      // set roll to cam by applying the same rotation
+      // NOTE: this prevents the planet from wobbling due to an inclined axis.
+      // this wobble presents as a rocking motion about the sun, starting with
+      // none at the center and growing more exaggerated as you move away from
+      // the center, be it vertically or horizontally.
+      camera.up.applyQuaternion(sunToNeptuneRotation);
+
+      // update camera controls
+      cameraControls.update();
 
       // update camera matrix
       camera.updateMatrixWorld();
