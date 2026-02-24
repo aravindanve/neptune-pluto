@@ -2,6 +2,8 @@ const initialCameraPosition = [0, -90, 30];
 const initialControllerValues = {
   Speed: 15000,
   Stars: true,
+  Asteroids: true,
+  Labels: false,
   Track: "None",
 };
 
@@ -19,6 +21,9 @@ const SpaceObjectPresets = Spacekit.SpaceObjectPresets;
 
 /** @type {import("spacekit.js").EphemPresets} */
 const EphemPresets = Spacekit.EphemPresets;
+
+/** @type {import("spacekit.js").Ephem} */
+const Ephem = Spacekit.Ephem;
 
 const stars = viz.createStars();
 
@@ -38,6 +43,7 @@ viz.createObject("saturn", { ...SpaceObjectPresets.SATURN, particleSize });
 viz.createObject("uranus", { ...SpaceObjectPresets.URANUS, particleSize });
 
 const neptune = viz.createSphere("neptune", {
+  labelText: "Neptune",
   ephem: EphemPresets.NEPTUNE,
   color: 0x465ef0,
   radius: 1,
@@ -47,11 +53,35 @@ const neptune = viz.createSphere("neptune", {
 });
 
 const pluto = viz.createSphere("pluto", {
+  labelText: "Pluto",
   ephem: EphemPresets.PLUTO,
   color: 0xff0000,
   radius: 0.5,
   theme: {
     orbitColor: 0xff0000,
+  },
+});
+
+const asteroid2025mh348 = viz.createSphere("asteroid2025mh348", {
+  labelText: "2025 MH348",
+  // source https://ssd.jpl.nasa.gov/horizons/app.html
+  ephem: new Ephem(
+    {
+      epoch: 2461000.5,
+      a: 30.2391154,
+      e: 9.158040000000001e-2,
+      i: 28.71388,
+      om: 154.86405,
+      w: 75.78133, //
+      ma: 76.27347,
+    },
+    "deg",
+    true,
+  ),
+  color: 0xffffff,
+  radius: 0.25,
+  theme: {
+    orbitColor: 0xffffff,
   },
 });
 
@@ -74,40 +104,67 @@ gui.add(guiState, "Stars", true).onChange((val) => {
   }
 });
 
+gui.add(guiState, "Asteroids", true).onChange((val) => {
+  if (val) {
+    viz.addObject(asteroid2025mh348);
+  } else {
+    viz.removeObject(asteroid2025mh348);
+  }
+});
+
+const setLabelVisibility = (val) => {
+  neptune.setLabelVisibility(val);
+  pluto.setLabelVisibility(val);
+  asteroid2025mh348.setLabelVisibility(val);
+};
+
+setLabelVisibility(false);
+gui.add(guiState, "Labels", false).onChange((val) => {
+  setLabelVisibility(val);
+});
+
 /** @type {import("spacekit.js").THREE} */
 const THREE = Spacekit.THREE;
 
 const sunMesh = sun.get3jsObjects()[0];
-const neptuneMesh = neptune.get3jsObjects()[0];
 const camera = viz.getViewer().get3jsCamera();
 const cameraControls = viz.getViewer().get3jsCameraControls();
 
-gui.add(guiState, "Track", ["None", "Neptune"]).onChange((val) => {
+const trackableObjects = {
+  None: undefined,
+  Neptune: neptune,
+  Pluto: pluto,
+  ["2025 MH348"]: asteroid2025mh348,
+};
+
+gui.add(guiState, "Track", Object.keys(trackableObjects)).onChange((val) => {
   if (val === "None") {
-    // stop tracking neptune with camera
+    // stop tracking object with camera
     viz.onTick = null;
 
     //
   } else {
-    let neptunePositionOld = neptuneMesh.position.clone();
+    const objectMesh = trackableObjects[val].get3jsObjects()[0];
 
-    // start tracking neptune with camera while keeping the sun at the center
+    let objectPositionOld = objectMesh.position.clone();
+
+    // start tracking object with camera while keeping the sun at the center
     viz.onTick = () => {
-      const neptunePositionNew = neptuneMesh.position.clone();
+      const objectPositionNew = objectMesh.position.clone();
 
-      // compute old sun to neptune vector
-      const sunToNeptuneOld = neptunePositionOld.clone().sub(sunMesh.position);
+      // compute old sun to object vector
+      const sunToNeptuneOld = objectPositionOld.clone().sub(sunMesh.position);
 
-      // compute new sun to neptune vector
-      const sunToNeptuneNew = neptunePositionNew.clone().sub(sunMesh.position);
+      // compute new sun to object vector
+      const sunToNeptuneNew = objectPositionNew.clone().sub(sunMesh.position);
 
-      // compute sun to neptune vector rotation
+      // compute sun to object vector rotation
       const sunToNeptuneRotation = new THREE.Quaternion().setFromUnitVectors(
         sunToNeptuneOld.clone().normalize(),
         sunToNeptuneNew.clone().normalize(),
       );
 
-      // compute sun to neptune vector scale factor
+      // compute sun to object vector scale factor
       const sunToNeptuneScaleFactor =
         sunToNeptuneOld.length() !== 0
           ? sunToNeptuneNew.length() / sunToNeptuneOld.length()
@@ -135,8 +192,8 @@ gui.add(guiState, "Track", ["None", "Neptune"]).onChange((val) => {
       // update camera matrix
       camera.updateMatrixWorld();
 
-      // update old neptune position
-      neptunePositionOld = neptunePositionNew.clone();
+      // update old object position
+      objectPositionOld = objectPositionNew.clone();
     };
   }
 });
@@ -148,6 +205,12 @@ const guiReset = {
 
     // set camera position to initial
     camera.position.set(...initialCameraPosition);
+
+    // set camera up to initial
+    camera.up.copy(sunMesh.up);
+
+    // update camera controls
+    cameraControls.update();
 
     // update camera matrix
     camera.updateMatrixWorld();
