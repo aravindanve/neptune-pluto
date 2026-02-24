@@ -4,6 +4,7 @@ const initialControllerValues = {
   Stars: true,
   Asteroids: true,
   Labels: false,
+  Orbits: true,
   Track: "None",
 };
 
@@ -34,13 +35,15 @@ const sun = viz.createObject("sun", {
 
 const particleSize = 10;
 
-viz.createObject("mercury", { ...SpaceObjectPresets.MERCURY, particleSize });
-viz.createObject("venus", { ...SpaceObjectPresets.VENUS, particleSize });
-viz.createObject("earth", { ...SpaceObjectPresets.EARTH, particleSize });
-viz.createObject("mars", { ...SpaceObjectPresets.MARS, particleSize });
-viz.createObject("jupiter", { ...SpaceObjectPresets.JUPITER, particleSize });
-viz.createObject("saturn", { ...SpaceObjectPresets.SATURN, particleSize });
-viz.createObject("uranus", { ...SpaceObjectPresets.URANUS, particleSize });
+const planets = [
+  viz.createObject("mercury", { ...SpaceObjectPresets.MERCURY, particleSize }),
+  viz.createObject("venus", { ...SpaceObjectPresets.VENUS, particleSize }),
+  viz.createObject("earth", { ...SpaceObjectPresets.EARTH, particleSize }),
+  viz.createObject("mars", { ...SpaceObjectPresets.MARS, particleSize }),
+  viz.createObject("jupiter", { ...SpaceObjectPresets.JUPITER, particleSize }),
+  viz.createObject("saturn", { ...SpaceObjectPresets.SATURN, particleSize }),
+  viz.createObject("uranus", { ...SpaceObjectPresets.URANUS, particleSize }),
+];
 
 const neptune = viz.createSphere("neptune", {
   labelText: "Neptune",
@@ -121,6 +124,17 @@ const setLabelVisibility = (val) => {
 setLabelVisibility(false);
 gui.add(guiState, "Labels", false).onChange((val) => {
   setLabelVisibility(val);
+});
+
+const setOrbitVisibility = (val) => {
+  planets.map((it) => it.getOrbit().setVisibility(val));
+  neptune.getOrbit().setVisibility(val);
+  pluto.getOrbit().setVisibility(val);
+  asteroid2025mh348.getOrbit().setVisibility(val);
+};
+
+gui.add(guiState, "Orbits", true).onChange((val) => {
+  setOrbitVisibility(val);
 });
 
 /** @type {import("spacekit.js").THREE} */
