@@ -167,28 +167,28 @@ gui.add(guiState, "Track", Object.keys(trackableObjects)).onChange((val) => {
       const objectPositionNew = objectMesh.position.clone();
 
       // compute old sun to object vector
-      const sunToNeptuneOld = objectPositionOld.clone().sub(sunMesh.position);
+      const sunToObjectOld = objectPositionOld.clone().sub(sunMesh.position);
 
       // compute new sun to object vector
-      const sunToNeptuneNew = objectPositionNew.clone().sub(sunMesh.position);
+      const sunToObjectNew = objectPositionNew.clone().sub(sunMesh.position);
 
       // compute sun to object vector rotation
-      const sunToNeptuneRotation = new THREE.Quaternion().setFromUnitVectors(
-        sunToNeptuneOld.clone().normalize(),
-        sunToNeptuneNew.clone().normalize(),
+      const sunToObjectRotation = new THREE.Quaternion().setFromUnitVectors(
+        sunToObjectOld.clone().normalize(),
+        sunToObjectNew.clone().normalize(),
       );
 
       // compute sun to object vector scale factor
-      const sunToNeptuneScaleFactor =
-        sunToNeptuneOld.length() !== 0
-          ? sunToNeptuneNew.length() / sunToNeptuneOld.length()
+      const sunToObjectScaleFactor =
+        sunToObjectOld.length() !== 0
+          ? sunToObjectNew.length() / sunToObjectOld.length()
           : 1;
 
       // compute new sun to cam vector by applying rotation and scale factor
       const sunToCamNew = camera.position
         .clone()
-        .applyQuaternion(sunToNeptuneRotation)
-        .multiplyScalar(sunToNeptuneScaleFactor);
+        .applyQuaternion(sunToObjectRotation)
+        .multiplyScalar(sunToObjectScaleFactor);
 
       // set new sun to cam vector as camera position
       camera.position.copy(sunToCamNew);
@@ -198,7 +198,7 @@ gui.add(guiState, "Track", Object.keys(trackableObjects)).onChange((val) => {
       // this wobble presents as a rocking motion about the sun, starting with
       // none at the center and growing more exaggerated as you move away from
       // the center, be it vertically or horizontally.
-      camera.up.applyQuaternion(sunToNeptuneRotation);
+      camera.up.applyQuaternion(sunToObjectRotation);
 
       // update camera controls
       cameraControls.update();
