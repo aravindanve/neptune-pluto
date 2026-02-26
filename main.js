@@ -30,6 +30,7 @@ const EphemPresets = Spacekit.EphemPresets;
 /** @type {import("spacekit.js").Ephem} */
 const Ephem = Spacekit.Ephem;
 
+// create objects
 const stars = viz.createStars();
 
 const sun = viz.createObject("sun", {
@@ -92,59 +93,6 @@ const asteroid2025mh348 = viz.createSphere("asteroid2025mh348", {
   },
 });
 
-/** @type {import('dat.gui').GUI} */
-const gui = new dat.GUI();
-const guiState = {
-  ...initialControllerValues,
-  Debug: {
-    ...initialControllerValues.Debug,
-  },
-};
-
-viz.setJdPerSecond(guiState.Speed);
-const speedController = gui.add(guiState, "Speed", 0, 1e5).onChange((val) => {
-  viz.setJdPerSecond(val);
-});
-
-gui.add(guiState, "Stars", true).onChange((val) => {
-  if (val) {
-    viz.addObject(stars, true);
-  } else {
-    viz.removeObject(stars);
-  }
-});
-
-gui.add(guiState, "Asteroids", true).onChange((val) => {
-  if (val) {
-    viz.addObject(asteroid2025mh348);
-    asteroid2025mh348.setLabelVisibility(guiState.Labels); // FIXME: label still gets lost
-  } else {
-    viz.removeObject(asteroid2025mh348);
-  }
-});
-
-const setLabelVisibility = (val) => {
-  neptune.setLabelVisibility(val);
-  pluto.setLabelVisibility(val);
-  asteroid2025mh348.setLabelVisibility(val);
-};
-
-setLabelVisibility(false);
-gui.add(guiState, "Labels", false).onChange((val) => {
-  setLabelVisibility(val);
-});
-
-const setOrbitVisibility = (val) => {
-  planets.map((it) => it.getOrbit().setVisibility(val));
-  neptune.getOrbit().setVisibility(val);
-  pluto.getOrbit().setVisibility(val);
-  asteroid2025mh348.getOrbit().setVisibility(val);
-};
-
-gui.add(guiState, "Orbits", true).onChange((val) => {
-  setOrbitVisibility(val);
-});
-
 /** @type {import("spacekit.js").THREE} */
 const THREE = Spacekit.THREE;
 
@@ -152,10 +100,9 @@ const sunMesh = sun.get3jsObjects()[0];
 const camera = viz.getViewer().get3jsCamera();
 const cameraControls = viz.getViewer().get3jsCameraControls();
 
-// camera up helper
+// create helpers
 const cameraUpHelper = new THREE.ArrowHelper(camera.up.clone().normalize(), undefined, 8, 0xffaa00);
 
-// ghost camera
 const ghostCameraLensOutline = new THREE.LineSegments(
   new THREE.EdgesGeometry(new THREE.ConeGeometry(2, 4, 6, 1)),
   new THREE.MeshBasicMaterial({ color: 0xffaa00 }),
@@ -173,7 +120,9 @@ ghostCameraBodyOutline.position.set(0, 0, -7);
 
 const ghostCamera = new THREE.Group().add(ghostCameraLensOutline, ghostCameraBodyOutline);
 
-// ghost camera helpers
+ghostCamera.position.copy(camera.position);
+ghostCamera.up.copy(camera.up);
+
 const ghostCameraPositionHelper = new THREE.ArrowHelper(
   ghostCamera.position.clone().normalize(),
   undefined,
@@ -183,6 +132,79 @@ const ghostCameraPositionHelper = new THREE.ArrowHelper(
   0,
 );
 
+// create gui controllers
+
+/** @type {import('dat.gui').GUI} */
+const gui = new dat.GUI();
+const guiState = {
+  ...initialControllerValues,
+  Debug: {
+    ...initialControllerValues.Debug,
+  },
+};
+
+const handleSpeedChange = (val) => {
+  viz.setJdPerSecond(val);
+};
+
+const speedController = gui
+  .add(guiState, "Speed", 0, 1e5)
+  .onChange(handleSpeedChange)
+  .setValue(guiState.Speed)
+  .listen();
+
+const handleStarsChange = (val) => {
+  if (val) {
+    viz.addObject(stars, true);
+  } else {
+    viz.removeObject(stars);
+  }
+};
+const starsController = gui.add(guiState, "Stars", true).onChange(handleStarsChange).setValue(guiState.Stars).listen();
+
+const handleAsteroidsChange = (val) => {
+  if (val) {
+    viz.addObject(asteroid2025mh348);
+    asteroid2025mh348.setLabelVisibility(guiState.Labels); // FIXME: label still gets lost
+  } else {
+    viz.removeObject(asteroid2025mh348);
+  }
+};
+
+const asteroidsController = gui
+  .add(guiState, "Asteroids", true)
+  .onChange(handleAsteroidsChange)
+  .setValue(guiState.Asteroids)
+  .listen();
+
+const handleLabelsChange = (val) => {
+  neptune.setLabelVisibility(val);
+  pluto.setLabelVisibility(val);
+  asteroid2025mh348.setLabelVisibility(val);
+};
+
+const labelsController = gui
+  .add(guiState, "Labels", true)
+  .onChange(handleLabelsChange)
+  .setValue(guiState.Labels)
+  .listen();
+
+const handleOrbitsChange = (val) => {
+  for (const planet of planets) {
+    planet.getOrbit().setVisibility(val);
+  }
+
+  neptune.getOrbit().setVisibility(val);
+  pluto.getOrbit().setVisibility(val);
+  asteroid2025mh348.getOrbit().setVisibility(val);
+};
+
+const orbitsController = gui
+  .add(guiState, "Orbits", true)
+  .onChange(handleOrbitsChange)
+  .setValue(guiState.Orbits)
+  .listen();
+
 /** @type {Record<string, import("spacekit.js").SphereObject>} */
 const trackableObjects = {
   None: undefined,
@@ -191,7 +213,14 @@ const trackableObjects = {
   ["2025 MH348"]: asteroid2025mh348,
 };
 
-gui.add(guiState, "Track", Object.keys(trackableObjects)).onChange((val) => {
+const updateCameraHelpers = (cameraOrGhostCamera) => {
+  cameraUpHelper.setDirection(cameraOrGhostCamera.up.clone());
+  ghostCamera.lookAt(sunMesh.position);
+  ghostCameraPositionHelper.setDirection(cameraOrGhostCamera.position.clone().normalize());
+  ghostCameraPositionHelper.setLength(cameraOrGhostCamera.position.length(), 0, 0);
+};
+
+const handleTrackChange = (val) => {
   if (val === "None") {
     // stop tracking object with camera
     viz.onTick = null;
@@ -222,11 +251,8 @@ gui.add(guiState, "Track", Object.keys(trackableObjects)).onChange((val) => {
     // but every other object and orbits jump to accomodate the new perspective
     cameraOrGhostCamera.up.applyQuaternion(cameraUpRotation);
 
-    // update helpers
-    cameraUpHelper?.setDirection(cameraOrGhostCamera.up.clone());
-    ghostCamera.lookAt(sunMesh.position);
-    ghostCameraPositionHelper.setDirection(cameraOrGhostCamera.position.clone().normalize());
-    ghostCameraPositionHelper.setLength(cameraOrGhostCamera.position.length(), 0, 0);
+    // update camera helpers
+    updateCameraHelpers(cameraOrGhostCamera);
 
     // update camera controls
     cameraControls.update();
@@ -273,11 +299,8 @@ gui.add(guiState, "Track", Object.keys(trackableObjects)).onChange((val) => {
       // the center, be it vertically or horizontally.
       cameraOrGhostCamera.up.applyQuaternion(sunToObjectRotation);
 
-      // update helpers
-      cameraUpHelper?.setDirection(cameraOrGhostCamera.up.clone());
-      ghostCamera.lookAt(sunMesh.position);
-      ghostCameraPositionHelper.setDirection(cameraOrGhostCamera.position.clone().normalize());
-      ghostCameraPositionHelper.setLength(cameraOrGhostCamera.position.length(), 0, 0);
+      // update camera helpers
+      updateCameraHelpers(cameraOrGhostCamera);
 
       // update camera controls
       cameraControls.update();
@@ -289,56 +312,70 @@ gui.add(guiState, "Track", Object.keys(trackableObjects)).onChange((val) => {
       objectPositionOld = objectPositionNew.clone();
     };
   }
-});
+};
+
+const trackController = gui
+  .add(guiState, "Track", Object.keys(trackableObjects))
+  .onChange(handleTrackChange)
+  .setValue(guiState.Track)
+  .listen();
+
+const handleGhostCameraChange = (val) => {
+  if (val) {
+    // update ghost camera to assume camera position and up
+    ghostCamera.position.copy(camera.position);
+    ghostCamera.up.copy(camera.up);
+
+    // update camera helpers
+    updateCameraHelpers(ghostCamera);
+
+    // add ghost camera to scene
+    viz.getScene().add(ghostCamera);
+    viz.getScene().add(ghostCameraPositionHelper);
+  } else {
+    // remove ghost camera
+    viz.getScene().remove(ghostCamera);
+    viz.getScene().remove(ghostCameraPositionHelper);
+
+    // update camera to assume ghost camera position and up
+    camera.position.copy(ghostCamera.position);
+    camera.up.copy(ghostCamera.up);
+
+    // update camera helpers
+    updateCameraHelpers(ghostCamera);
+  }
+};
 
 gui
   .add(guiState, "GhostCamera", false)
   .name("Ghost Camera")
-  .onChange((val) => {
-    if (val) {
-      // update ghost camera to assume camera position and up
-      ghostCamera.position.copy(camera.position);
-      ghostCamera.up.copy(camera.up);
-      ghostCamera.lookAt(sunMesh.position);
-      ghostCameraPositionHelper.setDirection(camera.position.clone().normalize());
-      ghostCameraPositionHelper.setLength(camera.position.length(), 0, 0);
+  .onChange(handleGhostCameraChange)
+  .setValue(guiState.GhostCamera)
+  .listen();
 
-      // add ghost camera to scene
-      viz.getScene().add(ghostCamera);
-      viz.getScene().add(ghostCameraPositionHelper);
-    } else {
-      // remove ghost camera
-      viz.getScene().remove(ghostCamera);
-      viz.getScene().remove(ghostCameraPositionHelper);
+const handleReset = () => {
+  const cameraOrGhostCamera = guiState.GhostCamera ? ghostCamera : camera;
 
-      // update camera to assume ghost camera position and up
-      camera.position.copy(ghostCamera.position);
-      camera.up.copy(ghostCamera.up);
-    }
-  });
+  // set speed to initial value
+  speedController.setValue(initialControllerValues.Speed);
 
-const guiReset = {
-  Reset: () => {
-    const cameraOrGhostCamera = guiState.GhostCamera ? ghostCamera : camera;
+  // set camera position to initial
+  cameraOrGhostCamera.position.set(...initialCameraPosition);
 
-    // set speed to initial value
-    speedController.setValue(initialControllerValues.Speed);
+  // set camera up to initial
+  cameraOrGhostCamera.up.copy(sunMesh.up);
 
-    // set camera position to initial
-    cameraOrGhostCamera.position.set(...initialCameraPosition);
+  // update camera helpers
+  updateCameraHelpers(cameraOrGhostCamera);
 
-    // set camera up to initial
-    cameraOrGhostCamera.up.copy(sunMesh.up);
+  // update camera controls
+  cameraControls.update();
 
-    // update camera controls
-    cameraControls.update();
-
-    // update camera matrix
-    camera.updateMatrixWorld();
-  },
+  // update camera matrix
+  camera.updateMatrixWorld();
 };
 
-gui.add(guiReset, "Reset").name("Reset Speed and Camera");
+gui.add({ Reset: handleReset }, "Reset").name("Reset Speed and Camera");
 
 const debugFolder = gui.addFolder("Debug");
 
@@ -348,7 +385,7 @@ const axesHelperBase = new THREE.AxesHelper(5);
 /** @type {[[import("three").Object3D, import("three").Object3D]]} */
 const axesHelperParentsAndHelpers = [];
 
-const showAxes = (val) => {
+const handleShowAxesChange = (val) => {
   if (val) {
     // add axes helper for scene
     const sceneAxesHelper = axesHelperBase.clone();
@@ -403,15 +440,11 @@ const showAxes = (val) => {
       parent.remove(helper);
     }
   }
-
-  // // for debugging, add camera up helper
-  // const cameraUpHelper = new THREE.ArrowHelper(camera.up.clone().normalize(), undefined, 10);
-  // viz.getScene().add(cameraUpHelper);
 };
 
 debugFolder
-  .add(guiState.Debug, "ShowAxes", false)
+  .add(guiState.Debug, "ShowAxes", true)
   .name("Show Axes")
-  .onChange((val) => {
-    showAxes(val);
-  });
+  .onChange(handleShowAxesChange)
+  .setValue(guiState.Debug.ShowAxes)
+  .listen();
