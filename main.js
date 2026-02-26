@@ -221,7 +221,29 @@ const updateCameraHelpers = (cameraOrGhostCamera) => {
 };
 
 const handleTrackChange = (val) => {
+  const cameraOrGhostCamera = guiState.GhostCamera ? ghostCamera : camera;
+
   if (val === "None") {
+    // calculate camera up rotation to align with global z axis
+    const cameraUpRotation = new THREE.Quaternion().setFromUnitVectors(
+      cameraOrGhostCamera.up.clone().normalize(),
+      new THREE.Vector3(0, 0, 1),
+    );
+
+    // set camera up rotation to align with global z axis
+    // TODO: set camera position in such a way that the object remains in the same position,
+    // but every other object and orbits jump to accomodate the new perspective
+    cameraOrGhostCamera.up.applyQuaternion(cameraUpRotation);
+
+    // update camera helpers
+    updateCameraHelpers(cameraOrGhostCamera);
+
+    // update camera controls
+    cameraControls.update();
+
+    // update camera matrix
+    camera.updateMatrixWorld();
+
     // stop tracking object with camera
     viz.onTick = null;
 
@@ -229,7 +251,6 @@ const handleTrackChange = (val) => {
   } else {
     const object = trackableObjects[val];
     const objectMesh = object.get3jsObjects()[0];
-    const cameraOrGhostCamera = guiState.GhostCamera ? ghostCamera : camera;
 
     // calculate object orbit normal
     const objectOrbitShape = object.getOrbit().getOrbitShape();
