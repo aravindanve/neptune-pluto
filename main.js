@@ -6,6 +6,7 @@ const initialControllerValues = {
   Labels: false,
   Orbits: true,
   Track: "None",
+  TrackSeamless: false,
   GhostCamera: false,
   Debug: {
     ShowAxes: false,
@@ -224,15 +225,13 @@ const handleTrackChange = (val) => {
   const cameraOrGhostCamera = guiState.GhostCamera ? ghostCamera : camera;
 
   if (val === "None") {
-    // calculate camera up rotation to align with global z axis
+    // compute camera up rotation to align with global z axis
     const cameraUpRotation = new THREE.Quaternion().setFromUnitVectors(
       cameraOrGhostCamera.up.clone().normalize(),
       new THREE.Vector3(0, 0, 1),
     );
 
     // set camera up rotation to align with global z axis
-    // TODO: set camera position in such a way that the object remains in the same position,
-    // but every other object and orbits jump to accomodate the new perspective
     cameraOrGhostCamera.up.applyQuaternion(cameraUpRotation);
 
     // update camera helpers
@@ -252,7 +251,7 @@ const handleTrackChange = (val) => {
     const object = trackableObjects[val];
     const objectMesh = object.get3jsObjects()[0];
 
-    // calculate object orbit normal
+    // compute object orbit normal
     const objectOrbitShape = object.getOrbit().getOrbitShape();
     const objectOrbitGeometryPosition = objectOrbitShape.geometry.attributes.position;
 
@@ -261,15 +260,69 @@ const handleTrackChange = (val) => {
       new THREE.Vector3().fromBufferAttribute(objectOrbitGeometryPosition, 1),
     );
 
-    // calculate camera up rotation to align with object orbit normal
+    // align object orbit normal with camera up without moving the object on screen
+    if (guiState.TrackSeamless) {
+      // NOTE: To align object orbit normal with camera up, we need to roll the camera.
+      // This causes the object to rotate about the center of the screen in the opposite direction.
+      // We can counter this by rotating the position of the camera around the sub to object axis,
+      // such that the object appears to have never moved. We can also think if it as rotating
+      // the object orbit normal around the sun to object axis until the object orbit normal
+      // lines up visually with the camera up vector as seen from the camera position.
+      // To compute the angle of rotation, we must first project the cam up vector onto the
+      // plane of rotation that is given by the normal - sun to object vector, in the direction
+      // of the camera. Now measuring the angle between the cam up projection and the object orbit
+      // normal will give us the angle of rotation. The formula for the cam up projection, is given by:
+      // c = cam up vector, d = sun to cam direction or unit vector, n = sun to object vector
+      // cam up projection = c - ((c . n) / (d . n)) d
+
+      // compute sun to object vector
+      const sunToObject = objectMesh.position.clone().sub(sunMesh.position);
+
+      // compute sun to cam vector and direction
+      const sunToCam = cameraOrGhostCamera.position.clone().sub(sunMesh.position);
+      const sunToCamDirection = sunToCam.clone().normalize();
+
+      // compute sun to cam direction dot sun to object
+      let sunToCamDirectionDotSunToObject = sunToCamDirection.dot(sunToObject);
+
+      // handle case when sun to cam direction dot sun to object is zero by adding a small value
+      // i.e. the direction of projection is parallel to the plane, hence the projection is undefined
+      if (sunToCamDirectionDotSunToObject === 0) {
+        sunToCamDirectionDotSunToObject += 0.0001;
+      }
+
+      // compute cam up projection on the plane of rotation along direction of sun to cam vector
+      const camUpProjection = cameraOrGhostCamera.up
+        .clone()
+        .sub(
+          sunToCamDirection
+            .clone()
+            .multiplyScalar(cameraOrGhostCamera.up.dot(sunToObject) / sunToCamDirection.dot(sunToObject)),
+        );
+
+      // compute angle of rotation between the cam up projection and object orbit normal about sun to object axis
+      const camRotationAngle = camUpProjection.angleTo(objectOrbitNormal);
+
+      // compute sign of rotation between the cam up projection and object orbit normal about sun to object axis
+      const camRotationSign = Math.sign(camUpProjection.clone().cross(objectOrbitNormal).dot(sunToObject));
+
+      // compute camera position rotation about sun to object vector in the opposite direction
+      const cameraPositionRotation = new THREE.Quaternion().setFromAxisAngle(
+        sunToObject.clone().normalize(),
+        camRotationAngle * camRotationSign,
+      );
+
+      // set camera position rotation about sun to object vector
+      cameraOrGhostCamera.position.applyQuaternion(cameraPositionRotation);
+    }
+
+    // compute camera up rotation to align with object orbit normal
     const cameraUpRotation = new THREE.Quaternion().setFromUnitVectors(
       cameraOrGhostCamera.up.clone().normalize(),
       objectOrbitNormal.clone().normalize(),
     );
 
     // set camera up rotation to align with object orbit normal
-    // TODO: set camera position in such a way that the object remains in the same position,
-    // but every other object and orbits jump to accomodate the new perspective
     cameraOrGhostCamera.up.applyQuaternion(cameraUpRotation);
 
     // update camera helpers
@@ -307,6 +360,7 @@ const handleTrackChange = (val) => {
       // compute new sun to cam vector by applying rotation and scale factor
       const sunToCamNew = cameraOrGhostCamera.position
         .clone()
+        .sub(sunMesh.position)
         .applyQuaternion(sunToObjectRotation)
         .multiplyScalar(sunToObjectScaleFactor);
 
@@ -340,6 +394,10 @@ const trackController = gui
   .onChange(handleTrackChange)
   .setValue(guiState.Track)
   .listen();
+
+const trackSeamlessController = gui.add(guiState, "TrackSeamless", true).name("Track Seamless").listen();
+trackSeamlessController.__li.title =
+  "Start tracking an object without it jumping when the camera rolls to align the orbit horizontally";
 
 const handleGhostCameraChange = (val) => {
   if (val) {
